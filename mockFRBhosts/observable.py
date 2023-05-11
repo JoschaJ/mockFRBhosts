@@ -7,10 +7,14 @@ Created on Tue Mar  1 13:09:40 2022
 """
 import os
 import warnings
+import requests
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import mockFRBhosts
+
+from glob import glob
 from numpy.random import normal
 from scipy.stats import sigmaclip
 from scipy.optimize import minimize_scalar
@@ -48,6 +52,65 @@ def get_file_galaxies(gal_file, header_row=4):
                        skiprows=header_row+1, skipfooter=1, engine='python')
     return data
 
+
+def download_galaxies(local_dir):
+    # Define the remote file to retrieve
+    remote_url = 'https://www.google.com/robots.txt'
+    # Define the local filename to save data
+    local_file = 'local_copy.txt'
+    # Make http request for remote file data
+    data = requests.get(remote_url)
+    # Save file data to local copy
+    with open(local_dir, 'wb') as file:
+        file.write(data.content)
+
+
+def draw_galaxies(frb_zs, weights='mstardot', seed=None, gal_files=None):
+    """Draw galaxies from a data base for given redshifts.
+
+    Args:
+        weights: 'mstardot' or 'mstars_total'
+        gal_files: list of galform galaxy files
+    """
+    if not gal_files:
+        # Find files with galaxies from GALFORM files.
+        module_path = os.path.dirname(mockFRBhosts.__file__)
+        gal_path = os.path.join(module_path.rsplit('/', 1)[0], 'GALFORM_galaxies')
+        gal_files = glob(gal_path + '/**/frb.cat', recursive=True)
+        if not gal_files:
+            download_galaxies(gal_path)
+
+    # Get the redshifts.
+    snap_zs = np.array([get_file_zs(gal_file) for gal_file in gal_files])
+
+    # Sort by redshift.
+    z_order = snap_zs.argsort()
+    snap_zs = snap_zs[z_order]
+    if np.any(snap_zs[:-1] == snap_zs[1:]):
+        raise ValueError("There are duplicats in the snapshots, it's likely iz105 which is weird.")
+    gal_files = [gal_files[i] for i in z_order]
+
+    # Make bins around the catalog snapshots
+    bins = np.concatenate((snap_zs[0:1], snap_zs[:-1] + np.diff(snap_zs)/2, snap_zs[-1:] + 50.))
+    nums_to_draw = np.histogram(frb_zs, bins=bins)[0]
+    relev_snap = np.nonzero(nums_to_draw != 0)[0]
+
+    # Draw galaxies from the GALFORM files. This assumes they are sorted like their redshifts.
+    seed = 42
+    rng = np.random.default_rng(seed)
+    galaxies = []
+    for snap, n_draw in zip(relev_snap, nums_to_draw[relev_snap]):
+        galaxy_pop = get_file_galaxies(gal_files[snap])
+        galaxy_pop.loc[:, 'redshift'] = snap_zs[snap]
+        galaxy_pop.loc[:, 'snapnum'] = snap
+        galaxies.append(galaxy_pop.sample(n=n_draw, replace=False, weights=weights,
+                                          random_state=rng))
+
+    galaxies = pd.concat(galaxies)
+    # Order FRBs such that they correspond to galaxies at the same positions.
+    snapnum = np.digitize(frb_zs.to_numpy(), bins) - 1
+
+    return galaxies, snapnum
 
 def observed_bands(frbs, galaxies):
     """Observe FRB hosts with different telescopes."""
@@ -104,11 +167,6 @@ def observed_bands(frbs, galaxies):
     n_bands_obs_SDSS = (apparent_mag < mag_limits_SDSS).sum(axis=1)
 
     return n_bands_obs_SDSS, n_bands_obs_LSST, n_bands_obs_Euclid, n_bands_obs_DES
-
-
-def flux_to_magnitude(f):
-    f0 = 3631  # Jy in the AB system
-    return -2.5*np.log10(f/f0)  # inverse is f0 * 10**(-0.4*mag)
 
 
 def observing_time(mag, snr=10, gal_size=1):
@@ -388,32 +446,6 @@ def draw_galaxies(snapnum, nums_to_draw, vdb, samp_size=100000, weights='sfr', r
     galaxies = pd.concat(galaxies)
 
     return galaxies
-
-
-def do_mcmc(zs, DMs):
-    """MCMC to reproduce the last figure of Macquart et al. 2020
-
-    Adapted from frb.tests.test_mcmc.test_pm
-    """
-    import pymc3 as pm
-    import arviz as az
-    from frb.dm import mcmc
-
-    mcmc.frb_zs = zs
-    mcmc.frb_DMs = DMs
-    DM_FRBp = mcmc.frb_DMs
-    mcmc.DM_FRBp_grid = np.outer(np.ones(mcmc.DM_values.size), DM_FRBp)
-    mcmc.DMhost_grid = np.outer(mcmc.DM_values, (1+mcmc.frb_zs))  # Host rest-frame DMs
-    mcmc.DMvalues_grid = np.outer(mcmc.DM_values, np.ones(DM_FRBp.size))
-    mcmc.Deltavalues_grid = np.outer(mcmc.Delta_values, np.ones(DM_FRBp.size))
-
-    parm_dict = mcmc.grab_parmdict()
-    with mcmc.pm_four_parameter_model(parm_dict, beta=3.):
-        # Sample
-        idata = pm.sample(1000, tune=500, return_inferencedata=True)
-        az.plot_pair(idata, kind=["scatter", "kde"], marginals=True,
-                     kde_kwargs={"fill_last": False},
-                     var_names=['F', 'Obh70', 'lognorm_s', 'mu'])
 
 
 def average_DM_deviation(c0, sigma):

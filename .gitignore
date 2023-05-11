@@ -1,1 +1,14 @@
-.spyproject 
+# Data with galaxies
+/GALFORM_galaxies
+/figures
+/paper_notebooks/.ipynb_checkpoints
+/mockFRBhosts/__pycache__
+
+
+# Spyder project directory.
+/.spyproject 
+
+# Python egg metadata, regenerated from source files by setuptools.
+/*.egg-info
+
+/.ipynb_checkpoints

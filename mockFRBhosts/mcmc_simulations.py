@@ -9,15 +9,50 @@ Created on Sat Jul  9 01:16:51 2022
 @author: JoschaJ
 """
 import numpy as np
+import pymc3 as pm
 
 from scipy.stats import lognorm
 from scipy.special import hyp1f1
 from scipy.special import gamma
+from scipy.interpolate import InterpolatedUnivariateSpline as IUS
+from astropy.cosmology import Planck18_arXiv_v2 as cosmo
 
+from frb import defs
+from frb.dm import mcmc
 from frb.dm import cosmic
+from frb.dm.igm import average_DM
 
-def log_likelihood(Obh70, F, in_DM_FRBp, z_FRB, mu=100., lognorm_s=1.,
-                   lognorm_floor=0., beta=3., step=1.):
+
+def do_mcmc(frb_zs, frb_DMs, draws, cores=4, tune=300):
+    """MCMC to reproduce the last figure of Macquart et al. 2020
+
+    Adapted from frb.tests.test_mcmc.test_pm
+    """
+    # Calculate the average DM up to the highest redshift, interpolate to avoid using this slow
+    # function again.
+    # (For every neval an integral is done in frb.dm.igm.avg_rhoISM when cosmo.age(z) is called.)
+    DM_cum, zeval = average_DM(frb_zs.max(), cosmo=defs.frb_cosmo, cumul=True)
+
+    global f_C0_3, spl_DMc, cosmo_Obh70
+    f_C0_3 = cosmic.grab_C0_spline()
+    spl_DMc = IUS(zeval, DM_cum.value)
+
+    cosmo_Obh70 = cosmo.Ob0 * (cosmo.H0.value/70.)
+
+    mcmc.all_prob = log_likelihood_variable_step
+    mcmc.frb_zs = frb_zs.to_numpy()
+    mcmc.frb_DMs = frb_DMs.to_numpy()
+    # mcmc.spl_DMc = spl_DMc  # Probbly not needed when function is defined here
+
+    parm_dict = mcmc.grab_parmdict()
+    with mcmc.pm_four_parameter_model(parm_dict, beta=3.):
+        idata = pm.sample(draws, tune=tune, cores=cores, return_inferencedata=True,
+                          discard_tuned_samples=True, progressbar=False,)
+    return idata
+
+
+def log_likelihood(Obh70, F, in_DM_FRBp, z_FRB, mu=100.,
+                   lognorm_s=1., lognorm_floor=0., beta=3., step=1.): #f_C0_3, spl_DMc, cosmo_Obh70,
     """Calculate the probability for a set of FRBs
 
     Compared to the previously used "all_prob", this function includes a
@@ -48,9 +83,7 @@ def log_likelihood(Obh70, F, in_DM_FRBp, z_FRB, mu=100., lognorm_s=1.,
     # C0
     if beta == 4.:
         raise ValueError("Bad beta value in all_prob")
-        C0 = tt_spl_C0(sigma)
     elif beta == 3.:
-        #C0 = tt_spl_C0_3(sigma)
         C0 = f_C0_3(sigma)
     else:
         raise IOError
@@ -71,21 +104,21 @@ def log_likelihood(Obh70, F, in_DM_FRBp, z_FRB, mu=100., lognorm_s=1.,
         # Calculate the normalization "analytically" to be fast.
         hyp_x = -C0**2/18/sigma**2
         normalizations = 3*(12*sigma)**(1/3)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
-                                             + 2**(1/2)*C0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
+                                              + 2**(1/2)*C0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
     else:
         # Integrate numerically. This is slower by a factor 146 (with 20000 samples).
         step = 20/20000
         Delta = np.linspace(step, 20.-step, 20000)
-        normalizations = cosmic.DMcosmic_PDF(Delta, C0[:, np.newaxis], sigma[:, np.newaxis], beta=beta)
+        normalizations = cosmic.DMcosmic_PDF(Delta, C0[:, np.newaxis], sigma[:, np.newaxis],
+                                             beta=beta)
         normalizations = 1 / (step * normalizations.sum(axis=-1))
 
     log_like = np.sum(np.log(likelihoods*normalizations/avgDM))
     return log_like
 
 
-def log_likelihood_variable_step(Obh70, F, in_DM_FRBp, z_FRB, mu=100.,
-                                 lognorm_floor=0, lognorm_s=1., beta=3.,
-                                 res=400):
+def log_likelihood_variable_step(Obh70, F, in_DM_FRBp, z_FRB,
+                                 mu=100., lognorm_s=1., beta=3., res=400):
     """Calculate the log likelihood for a set of FRBs.
 
     Compared to the previously used "all_prob", this function includes a
@@ -118,9 +151,7 @@ def log_likelihood_variable_step(Obh70, F, in_DM_FRBp, z_FRB, mu=100.,
     # C0 for each FRB.
     if beta == 4.:
         raise ValueError("Bad beta value in all_prob")
-        C0 = tt_spl_C0(sigma)
     elif beta == 3.:
-        #C0 = tt_spl_C0_3(sigma)
         C0 = f_C0_3(sigma)
     else:
         raise IOError
@@ -141,12 +172,13 @@ def log_likelihood_variable_step(Obh70, F, in_DM_FRBp, z_FRB, mu=100.,
         # Calculate the normalization "analytically" to be fast.
         hyp_x = -C0**2/18/sigma**2
         normalizations = 3*(12*sigma)**(1/3)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
-                                             + 2**(1/2)*C0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
+                                              + 2**(1/2)*C0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
     else:
         # Integrate numerically. This is slower by a factor 146 (with 20000 samples).
         step = 20/20000
         Delta = np.linspace(step, 20.-step, 20000)
-        normalizations = cosmic.DMcosmic_PDF(Delta, C0[:, np.newaxis], sigma[:, np.newaxis], beta=beta)
+        normalizations = cosmic.DMcosmic_PDF(Delta, C0[:, np.newaxis], sigma[:, np.newaxis],
+                                             beta=beta)
         normalizations = 1 / (step * normalizations.sum(axis=-1))
 
     # Normalization matters because it is different for each FRB. The factor avgDM comes because
