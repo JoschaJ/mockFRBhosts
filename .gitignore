@@ -1,6 +1,7 @@
 # Data with galaxies
 /GALFORM_galaxies
 /figures
+/.ipynb_checkpoints
 /paper_notebooks/.ipynb_checkpoints
 /mockFRBhosts/__pycache__
 
@@ -11,4 +12,3 @@
 # Python egg metadata, regenerated from source files by setuptools.
 /*.egg-info
 
-/.ipynb_checkpoints

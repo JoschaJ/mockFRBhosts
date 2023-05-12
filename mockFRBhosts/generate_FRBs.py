@@ -192,18 +192,20 @@ def plot_population(frbs, cosmic_pop, cpop_factor=1, plot_james=True):
     ax3.bar(bins[:-1], cpop_factor*histo, align='edge', width=np.diff(bins), color=palette[2])
     ax3.hist(frbs['z'], density=False, bins=bins, alpha=1., color=palette[1])
 
-    # Add simulated FRBs from James et al. 2022
-    james_zs = james_frbs.reshape((100, 3))[:, 2]
-    if bins[-1] < james_zs.max():
-        nbins = np.ceil(james_zs.max()/(bins[1]-bins[0]))
-        bins = np.linspace(0, nbins*(bins[1]-bins[0]), num=int(nbins))
-    ax3.hist(james_zs, density=False, bins=bins, alpha=.8, color=palette[0],
-             label="James et al. (2022c)")
-    ax3.set_yscale('log')
+    if plot_james:
+        # Add simulated FRBs from James et al. 2022
+        james_zs = james_frbs.reshape((100, 3))[:, 2]
+        # Make the same binsize as other data.
+        if bins[-1] < james_zs.max():
+            nbins = np.ceil(james_zs.max()/(bins[1]-bins[0]))
+            bins = np.linspace(0, nbins*(bins[1]-bins[0]), num=int(nbins))
+        ax3.hist(james_zs, density=False, bins=bins, alpha=.8, color=palette[0],
+                 label="James et al. (2022c)")
+        ax3.legend()
 
+    ax3.set_yscale('log')
     ax3.set_xlabel('$z$')
     ax3.set_ylim(0.5, 1e10)
     ax3.set_yticks([1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9])
-    ax3.legend()
 
     return fig

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Corrected Likelihood functions.
-Need to be copied into mcmc.py
+
+Includes corrected Likelihood functions
 
 Created on Sat Jul  9 01:16:51 2022
 
@@ -52,7 +52,7 @@ def do_mcmc(frb_zs, frb_DMs, draws, cores=4, tune=300):
 
 
 def log_likelihood(Obh70, F, in_DM_FRBp, z_FRB, mu=100.,
-                   lognorm_s=1., lognorm_floor=0., beta=3., step=1.): #f_C0_3, spl_DMc, cosmo_Obh70,
+                   lognorm_s=1., lognorm_floor=0., beta=3., step=1.):
     """Calculate the probability for a set of FRBs
 
     Compared to the previously used "all_prob", this function includes a

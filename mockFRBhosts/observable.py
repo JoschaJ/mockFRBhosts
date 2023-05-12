@@ -6,8 +6,8 @@ Created on Tue Mar  1 13:09:40 2022
 @author: JoschaJ
 """
 import os
+import re
 import warnings
-import requests
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import mockFRBhosts
 
 from glob import glob
+from urllib.request import urlopen, urlretrieve
 from numpy.random import normal
 from scipy.stats import sigmaclip
 from scipy.optimize import minimize_scalar
@@ -54,15 +55,19 @@ def get_file_galaxies(gal_file, header_row=4):
 
 
 def download_galaxies(local_dir):
-    # Define the remote file to retrieve
-    remote_url = 'https://www.google.com/robots.txt'
-    # Define the local filename to save data
-    local_file = 'local_copy.txt'
-    # Make http request for remote file data
-    data = requests.get(remote_url)
-    # Save file data to local copy
-    with open(local_dir, 'wb') as file:
-        file.write(data.content)
+    """Download GALFORM galaxies from Zenodo"""
+    # Find all files on the page
+    url = 'https://zenodo.org/record/7926078'
+    page = urlopen(url)
+    html = page.read().decode("utf-8")
+    files = re.findall(r'https://zenodo.org/record.*?frb\.cat', html)
+
+    print("Galaxy data is being downloaded, this may take a few minutes (784 MB).")
+    for file in files:
+        # Define the local filename to save data
+        local_file = os.path.join(local_dir, os.path.basename(file))
+        # Download remote and save locally
+        urlretrieve(file, local_file)
 
 
 def draw_galaxies(frb_zs, weights='mstardot', seed=None, gal_files=None):
@@ -76,9 +81,10 @@ def draw_galaxies(frb_zs, weights='mstardot', seed=None, gal_files=None):
         # Find files with galaxies from GALFORM files.
         module_path = os.path.dirname(mockFRBhosts.__file__)
         gal_path = os.path.join(module_path.rsplit('/', 1)[0], 'GALFORM_galaxies')
-        gal_files = glob(gal_path + '/**/frb.cat', recursive=True)
+        gal_files = glob(gal_path + '/**/*frb.cat', recursive=True)
         if not gal_files:
             download_galaxies(gal_path)
+            gal_files = glob(gal_path + '/**/*frb.cat', recursive=True)
 
     # Get the redshifts.
     snap_zs = np.array([get_file_zs(gal_file) for gal_file in gal_files])
@@ -111,6 +117,7 @@ def draw_galaxies(frb_zs, weights='mstardot', seed=None, gal_files=None):
     snapnum = np.digitize(frb_zs.to_numpy(), bins) - 1
 
     return galaxies, snapnum
+
 
 def observed_bands(frbs, galaxies):
     """Observe FRB hosts with different telescopes."""
@@ -240,6 +247,67 @@ def observing_time_spectrum(mag, snr=10, gal_diam=2):
     B = tau*area*N0*bandpass*10**(-0.4*m_b)*phi1*gal_diam
 
     return B/Q*(snr/(kappa*S))**2
+
+
+def average_DM_deviation(c0, sigma):
+    """Take the difference between the average Delta and its target.
+
+    C_0 is not a free parameter, but is fixed by the definition
+    Delta = DM_cosmic / <DM_cosmic> to guarantee <Delta> = 1.
+    """
+    # Compute x that is used in every hyp1f1
+    hyp_x = -c0**2/18/sigma**2
+
+    normalization = 3*(12*sigma)**(1/3)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
+                                         + 2**(1/2)*c0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
+    # normalization = 3*np.cbrt(12*sigma)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
+    #                                     + np.sqrt(2)*c0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
+
+    avrg_DM = normalization/3 * (gamma(1/6)*hyp1f1(1/3, 1/2, hyp_x)/(2**5/9/sigma**2)**(1/6)
+                                 + c0*gamma(2/3)*hyp1f1(5/6, 3/2, hyp_x)/(18*sigma**2)**(1/3))
+    return np.abs(avrg_DM-1)
+
+
+def draw_Delta(z, f=0.2, n_samples=1, rng=None):
+    """Draw Delta from p_cosmic.
+
+    Following Macquart et al. 2020 the PDF can be described by their
+    equation (4). Here Delta = DM_cosmic / <DM_cosmic>, that means to
+    get DM_cosmic the returned number has to be multiplied by the average of
+    DM_cosmic. This is because frb.dm.igm.average_DM() is very slow and should
+    only be used once (with cumul=True) and then be interpolated.
+
+    Args:
+        z (float): Redshift.
+        f (float, optional): Strength of baryon feedback F. Defaults to 0.2.
+        n_samples (int, optional): Number to draw. Defaults to 1.
+
+    Returns:
+        array: Delta for given z, defined as DM_cosmic / <DM_cosmic>.
+    """
+    sigma = f/np.sqrt(z)
+    c0 = minimize_scalar(average_DM_deviation, args=(sigma)).x
+
+    hyp_x = -c0**2/18/sigma**2
+    normalization = 3*(12*sigma)**(1/3)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
+                                         + 2**(1/2)*c0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
+
+    # Create 20000 values of the PDF to create the inverse from.
+    Delta_values = np.linspace(1/1000., 20., 20000)  # error at z=10 is <0.005%
+    # dpm3 = Delta_values**-3  # Delta to the power of -3
+    # pdf = normalization * np.exp(-(dpm3 - c0) ** 2 / (18 * sigma*sigma)) * dpm3
+
+    pdf = DMcosmic_PDF(Delta_values, c0, sigma, A=normalization, alpha=3., beta=3.)
+
+    # Invert the CDF.
+    cum_values = pdf.cumsum()/pdf.sum()
+    inv_cdf = interp1d(cum_values, Delta_values, assume_sorted=True)
+
+    if rng is None:
+        rng = np.random.default_rng()
+    r = rng.random(n_samples)
+
+    return inv_cdf(r)
 
 
 # From Lauras UsefulNotebooks/SDSS_MagErr.ipynb
@@ -391,114 +459,3 @@ def beck_mag_cuts(bands, errs, coloronly=False, verbose=False):
         print("All valid: ", np.count_nonzero(condition))
 
     return condition
-
-
-# When using the data from the Virgo data base.
-def load_galaxy_sample(samp_size, snap, vdb, save=True):
-    """Load a sample of galaxies to draw from.
-
-    This is done from file or VirgoDB. It only loads GalaxyID, stellarmass and
-    sfr to allow weighted draws. If the resulting sample is too small it only warns.
-    """
-    data_path = os.path.join('Galaxies', f'virgo_galaxies_snap_{snap}.hdf5')
-    galaxy_samp = []  # to test for its length
-    # Load from file if data had been loaded before, otherwise from Virgo database.
-    if os.path.isfile(data_path):
-        galaxy_samp = pd.read_hdf(data_path, 'galaxies')
-    if not os.path.isfile(data_path) or len(galaxy_samp) < samp_size:
-        rand_nr = samp_size/2e7 * np.exp((61-snap)/30)  # Lower snaps (higher z) have less galaxies.
-        galaxy_samp = vdb.execute_query(f'select GalaxyID, stellarmass, sfr '
-                                        f'from Lacey2016a..MR7 '
-                                        f'where snapnum = {snap} '
-                                        f'and stellarmass > 0.001 '  # this is >10**7 M_sol/h
-                                        f'and random between 0 and {rand_nr} ')  # 0 to 0.1 are about 3 million galaxies
-        galaxy_samp = pd.DataFrame.from_records(galaxy_samp)
-        if save:
-            galaxy_samp.to_hdf(data_path, 'galaxies', mode='w')
-    print(galaxy_samp.shape[0], samp_size, snap)
-    # Draw desired number from the data. It is not possible to randomly draw a fixed size from the database and it is somehow sorted.
-    if len(galaxy_samp) > samp_size:
-        galaxy_samp = galaxy_samp.sample(samp_size, random_state=42)
-    elif len(galaxy_samp) < samp_size:
-
-        warnings.warn(f"Only {len(galaxy_samp)} galaxies drawn for snapshot {snap}. Likely the random range is too small.")
-    return galaxy_samp
-
-
-def draw_galaxies(snapnum, nums_to_draw, vdb, samp_size=100000, weights='sfr', random_state=None):
-    """Draw galaxies for each non-zero bin."""
-    samp_size = int(samp_size)
-    galaxies = []
-    for snap, n_draw in zip(snapnum, nums_to_draw):
-        # Get a (hopefully) representative sample.
-        galaxy_pop = load_galaxy_sample(samp_size, snap, vdb)
-
-        # Draw the desired number of galaxies from the sample.
-        drawn_galaxies = galaxy_pop.sample(n=n_draw, replace=False, weights=weights, random_state=random_state)
-
-        # Query full information for selected galaxies.
-        galaxy_info = vdb.execute_query(f'select * '
-                                        f'from Lacey2016a..MR7 '
-                                        f'where snapnum = {snap} '
-                                        f'and GalaxyID in ({str(list(drawn_galaxies["GalaxyID"]))[1:-1]}) ')
-        galaxies.append(pd.DataFrame.from_records(galaxy_info, index='GalaxyID'))
-
-    galaxies = pd.concat(galaxies)
-
-    return galaxies
-
-
-def average_DM_deviation(c0, sigma):
-    # Compute x that is used in every hyp1f1
-    hyp_x = -c0**2/18/sigma**2
-
-    normalization = 3*(12*sigma)**(1/3)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
-                                         + 2**(1/2)*c0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
-    # normalization = 3*np.cbrt(12*sigma)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
-    #                                     + np.sqrt(2)*c0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
-
-    avrg_DM = normalization/3 * (gamma(1/6)*hyp1f1(1/3, 1/2, hyp_x)/(2**5/9/sigma**2)**(1/6)
-                                 + c0*gamma(2/3)*hyp1f1(5/6, 3/2, hyp_x)/(18*sigma**2)**(1/3))
-    return np.abs(avrg_DM-1)
-
-
-def draw_Delta(z, f=0.2, n_samples=1, rng=None):
-    """Draw Delta from p_cosmic.
-
-    Following Macquart et al. 2020 the PDF can be described by their
-    equation (4). Here Delta = DM_cosmic / <DM_cosmic>, that means to
-    get DM_cosmic the returned number has to be multiplied by the average of
-    DM_cosmic. This is because frb.dm.igm.average_DM() is very slow and should
-    only be used once (with cumul=True) and then be interpolated.
-
-    Args:
-        z (float): Redshift.
-        f (float, optional): Strength of baryon feedback F. Defaults to 0.2.
-        n_samples (int, optional): Number to draw. Defaults to 1.
-
-    Returns:
-        array: Delta for given z, defined as DM_cosmic / <DM_cosmic>.
-    """
-    sigma = f/np.sqrt(z)
-    c0 = minimize_scalar(average_DM_deviation, args=(sigma)).x
-
-    hyp_x = -c0**2/18/sigma**2
-    normalization = 3*(12*sigma)**(1/3)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
-                                         + 2**(1/2)*c0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
-
-    # Create 20000 values of the PDF to create the inverse from.
-    Delta_values = np.linspace(1/1000., 20., 20000)  # error at z=10 is <0.005%
-    # dpm3 = Delta_values**-3  # Delta to the power of -3
-    # pdf = normalization * np.exp(-(dpm3 - c0) ** 2 / (18 * sigma*sigma)) * dpm3
-
-    pdf = DMcosmic_PDF(Delta_values, c0, sigma, A=normalization, alpha=3., beta=3.)
-
-    # Invert the CDF.
-    cum_values = pdf.cumsum()/pdf.sum()
-    inv_cdf = interp1d(cum_values, Delta_values, assume_sorted=True)
-
-    if rng is None:
-        rng = np.random.default_rng()
-    r = rng.random(n_samples)
-
-    return inv_cdf(r)
