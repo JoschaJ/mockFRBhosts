@@ -183,7 +183,7 @@ def plot_population(frbs, cosmic_pop, cpop_factor=1, plot_james=True):
     ax2.set_xscale('log')
     ax2.set_yscale('log')
     ax2.set_xlabel(r'$L_\mathrm{bol} \;(\mathrm{erg\,s}^{-1})$')
-    ax2.set_xticks([1e40, 1e42, 1e44])
+    #ax2.set_xticks([1e40, 1e42, 1e44])
     ax2.legend()
 
     # Redshift

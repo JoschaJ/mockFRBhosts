@@ -17,15 +17,17 @@ import mockFRBhosts
 from glob import glob
 from urllib.request import urlopen, urlretrieve
 from numpy.random import normal
-from scipy.stats import sigmaclip
+from scipy.interpolate import interp1d
 from scipy.optimize import minimize_scalar
 from scipy.special import hyp1f1
 from scipy.special import gamma
-from scipy.interpolate import interp1d
+from scipy.stats import sigmaclip
+from scipy.stats import lognorm
 from astropy.coordinates import Distance
 from astropy.cosmology import Planck18_arXiv_v2 as cosmo
 
 from frb.dm.cosmic import DMcosmic_PDF
+from frb.dm.igm import average_DM
 
 
 def get_file_zs(gal_file, header_row=4):
@@ -102,7 +104,6 @@ def draw_galaxies(frb_zs, weights='mstardot', seed=None, gal_files=None):
     relev_snap = np.nonzero(nums_to_draw != 0)[0]
 
     # Draw galaxies from the GALFORM files. This assumes they are sorted like their redshifts.
-    seed = 42
     rng = np.random.default_rng(seed)
     galaxies = []
     for snap, n_draw in zip(relev_snap, nums_to_draw[relev_snap]):
@@ -249,23 +250,26 @@ def observing_time_spectrum(mag, snr=10, gal_diam=2):
     return B/Q*(snr/(kappa*S))**2
 
 
-def average_DM_deviation(c0, sigma):
-    """Take the difference between the average Delta and its target.
+def draw_DM(frb_zs, F=0.2, mu=100, lognorm_s=1, rng=None):
+    """Draw a DM for each given reshift.
 
-    C_0 is not a free parameter, but is fixed by the definition
-    Delta = DM_cosmic / <DM_cosmic> to guarantee <Delta> = 1.
+    Give parameter values from which to simulate the DM. Obh70 is not
+    used at the moment, would have to give it to averag_DM.
     """
-    # Compute x that is used in every hyp1f1
-    hyp_x = -c0**2/18/sigma**2
+    # Calculate the average DM up to the highest redshift, interpolate
+    # to avoid using this slow function again. (For every neval an
+    # integral is done in frb.dm.igm.avg_rhoISM when cosmo.age(z) is called.)
+    DM_cum, zeval = average_DM(frb_zs.max(), cosmo=cosmo, cumul=True)
+    avrg_DM = interp1d(zeval, DM_cum, assume_sorted=True)
 
-    normalization = 3*(12*sigma)**(1/3)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
-                                         + 2**(1/2)*c0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
-    # normalization = 3*np.cbrt(12*sigma)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
-    #                                     + np.sqrt(2)*c0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
+    # Draw a DM_IGM from it's PDF. Multiply by <DM_cosmic> to get a DM.
+    delta = [float(draw_Delta(z, f=F, n_samples=1, rng=rng)) for z in frb_zs]
+    dm_cosmic = np.array(delta) * avrg_DM(frb_zs)
 
-    avrg_DM = normalization/3 * (gamma(1/6)*hyp1f1(1/3, 1/2, hyp_x)/(2**5/9/sigma**2)**(1/6)
-                                 + c0*gamma(2/3)*hyp1f1(5/6, 3/2, hyp_x)/(18*sigma**2)**(1/3))
-    return np.abs(avrg_DM-1)
+    # Draw a DM_host from the parameters that Macquart2020 gives.
+    dm_host = lognorm.rvs(lognorm_s, scale=mu, size=len(frb_zs))
+
+    return dm_host/(1+frb_zs) + dm_cosmic
 
 
 def draw_Delta(z, f=0.2, n_samples=1, rng=None):
@@ -308,6 +312,25 @@ def draw_Delta(z, f=0.2, n_samples=1, rng=None):
     r = rng.random(n_samples)
 
     return inv_cdf(r)
+
+
+def average_DM_deviation(c0, sigma):
+    """Take the difference between the average Delta and its target.
+
+    C_0 is not a free parameter, but is fixed by the definition
+    Delta = DM_cosmic / <DM_cosmic> to guarantee <Delta> = 1.
+    """
+    # Compute x that is used in every hyp1f1
+    hyp_x = -c0**2/18/sigma**2
+
+    normalization = 3*(12*sigma)**(1/3)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
+                                         + 2**(1/2)*c0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
+    # normalization = 3*np.cbrt(12*sigma)/(gamma(1/3)*3*sigma*hyp1f1(1/6, 1/2, hyp_x)
+    #                                     + np.sqrt(2)*c0*gamma(5/6)*hyp1f1(2/3, 3/2, hyp_x))
+
+    avrg_DM = normalization/3 * (gamma(1/6)*hyp1f1(1/3, 1/2, hyp_x)/(2**5/9/sigma**2)**(1/6)
+                                 + c0*gamma(2/3)*hyp1f1(5/6, 3/2, hyp_x)/(18*sigma**2)**(1/3))
+    return np.abs(avrg_DM-1)
 
 
 # From Lauras UsefulNotebooks/SDSS_MagErr.ipynb
