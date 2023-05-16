@@ -5,8 +5,6 @@
 These Functions were used to create table 4 in Jahns et al. 2023.
 
 Created on Wed Aug 24 15:17:14 2022
-
-@author: JoschaJ
 """
 import numpy as np
 

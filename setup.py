@@ -9,4 +9,13 @@ setup(name='mockFRBhosts',
       url='https://github.com/JoschaJ/mockFRBhosts',
       packages=find_packages(),
       license='tbd',
+      install_requires=[
+          'python>=3.6',  # because of f-strings
+          'numpy',
+          'scipy',
+          'pandas',
+          'matplotlib',
+          'seaborn',
+          'astropy',
+          ]
       )

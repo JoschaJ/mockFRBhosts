@@ -1,9 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Mar  1 13:09:40 2022
+"""Core module to assess observability of FRB hosts.
 
-@author: JoschaJ
+This module provides various functions to draw host galaxies, assess
+visibility in optical surveys, and calculate required observing times.
+
+Functions:
+    get_file_zs(gal_file, header_row): Retrieve redshift of a GALFORM
+        file.
+    get_file_galaxies(gal_file, header_row): Extract galaxies from a
+        GALFORM file.
+    download_galaxies(local_dir): Download GALFORM data to a local
+        directory.
+    draw_galaxies(frb_zs, weights, seed, gal_files): Draw galaxies based
+        on given redshifts.
+    observed_bands(frbs, galaxies): Observe FRB hosts with different
+        telescopes.
+    observing_time(mag, snr, gal_size): Calculate the necessary
+        observing time for a photometric band.
+    observing_time_spectrum(mag, snr, gal_diam): Calculate the necessary
+        observing time for a spectrometer.
+    draw_DM(frb_zs, F, mu, lognorm_s, rng): Draw DM values for FRBs
+        based on their redshifts.
+    draw_Delta(z, f, n_samples, rng): Draw Delta values given a
+        redshift.
+    average_DM_deviation(c0, sigma): Calculate the deviation of the
+        average DM from its expected value for a given C_0.
+
+Created on Tue Mar  1 13:09:40 2022
 """
 import os
 import re
@@ -73,11 +97,21 @@ def download_galaxies(local_dir):
 
 
 def draw_galaxies(frb_zs, weights='mstardot', seed=None, gal_files=None):
-    """Draw galaxies from a data base for given redshifts.
+    """Draw galaxies from a database for given redshifts.
 
     Args:
-        weights: 'mstardot' or 'mstars_total'
-        gal_files: list of galform galaxy files
+        frb_zs (numpy.ndarray): Redshifts for which galaxies are to be
+            drawn.
+        weights (str, optional): Weighting scheme for galaxy selection.
+            Choices are 'mstardot' or 'mstars_total'.
+        seed (int, optional): Seed for the random number generator.
+        gal_files (list, optional): List of galaxy files. If not
+            provided, GALFORM galaxy files will be automatically
+            searched and downloaded.
+
+    Returns:
+        pandas.DataFrame: Dataframe of drawn galaxies.
+        numpy.ndarray: Snapshots number in which the FRBs fell.
     """
     if not gal_files:
         # Find files with galaxies from GALFORM files.
@@ -121,7 +155,20 @@ def draw_galaxies(frb_zs, weights='mstardot', seed=None, gal_files=None):
 
 
 def observed_bands(frbs, galaxies):
-    """Observe FRB hosts with different telescopes."""
+    """Observe FRB hosts with different telescopes.
+
+    Args:
+        frbs (numpy.ndarray or pandas.DataFrame): Array or DataFrame
+            containing FRB data.
+        galaxies (pandas.DataFrame): DataFrame containing galaxy data.
+
+    Returns:
+        numpy.ndarray: Number of observable bands in SDSS.
+        numpy.ndarray: Number of observable bands in LSST.
+        numpy.ndarray: Number of observable bands in EUCLID.
+        numpy.ndarray: Number of observable bands in DES.
+    """
+
     if not np.all(frbs['snapnum'].to_numpy() == galaxies['snapnum'].to_numpy()):
         warnings.warn("FRBs and galaxies are not ordered in the same manner.")
 
@@ -178,19 +225,20 @@ def observed_bands(frbs, galaxies):
 
 
 def observing_time(mag, snr=10, gal_size=1):
-    """Calculate the necessary observing time vor an example telescope.
+    """Calculate the necessary observing time for an example telescope.
 
-    This function follows chapter 17 of Schroeder (2000) "Astronomical Optics".
-    We calculate the observing time in the background limited case for a fixed set of
-    telescope parameters.
+    This function follows Chapter 17 of Schroeder (2000) "Astronomical
+    Optics". It calculates the observing time in the background-limited
+    case for a fixed set of telescope parameters.
 
     Args:
-        mag (float, array): Apparent Magnitudes.
+        mag (float or array-like): Apparent magnitudes.
         snr (float): Desired signal-to-noise ratio.
-        gal_size (float, array): Galaxy size on the sky (arcsec^2).
+        gal_size (float or array-like): Galaxy size on the sky
+            (arcsec^2).
 
     Returns:
-        Array: observing time (s)
+        array-like: Observing time (s).
     """
     kappa = 0.8  # instrumental losses, not included in tau
     Q = 0.8
@@ -209,22 +257,23 @@ def observing_time(mag, snr=10, gal_size=1):
 
 
 def observing_time_spectrum(mag, snr=10, gal_diam=2):
-    """Calculate the necessary observing time vor an example spectrometer.
+    """Calculate the required observing time for a spectrometer.
 
-    This function follows chapter 17 of Schroeder (2000) "Astronomical Optics".
-    We calculate the observing time in the background limited case for a fixed set of
-    telescope parameters. The difference from the observing_time function is that
-    (at least) one direction on the sky is limited by the slit width, and that the band
-    pass is instead the line width. We assume that the the galaxy size is 1arcsec^2.
+    This function follows chapter 17 of Schroeder (2000) "Astronomical
+    Optics". We calculate the observing time in the background-limited
+    case for a fixed set of telescope parameters. The difference from
+    the observing_time function is that (at least) one direction on the
+    sky is limited by the slit width, and that the band pass is instead
+    the line width. We assume that the the galaxy size is 1arcsec^2.
 
     Args:
-        mag (float, array): Apparent Magnitudes.
+        mag (float or array): Apparent magnitudes.
         snr (float): Desired signal-to-noise ratio.
-        gal_diam (float, array): Angular size of the galaxy along the long side
-            of the slit (arcsec).
+        gal_diam (float or array): Angular size of the galaxy along the
+            long side of the slit (arcsec).
 
     Returns:
-        Array: observing time (s)
+        Array: Observing time (s)
     """
     kappa = 0.8  # instrumental losses, not included in tau
     Q = 0.8
@@ -253,8 +302,21 @@ def observing_time_spectrum(mag, snr=10, gal_diam=2):
 def draw_DM(frb_zs, F=0.2, mu=100, lognorm_s=1, rng=None):
     """Draw a DM for each given reshift.
 
-    Give parameter values from which to simulate the DM. Obh70 is not
-    used at the moment, would have to give it to averag_DM.
+    Given the parameter values from this function simulates the DM.
+    Obh70 can not be given at the moment, would have to give it to
+    averag_DM.
+
+    Args:
+        frb_zs (array-like): Redshifts of FRBs.
+        F (float): Fraction of baryonic DM in the intergalactic medium.
+        mu (float): Mean of the lognormal distribution for DM_host.
+        lognorm_s (float): Standard deviation of the lognormal
+            distribution for DM_host.
+        rng (numpy.random.Generator): Random number generator.
+
+    Returns:
+        numpy.ndarray: Total dispersion measures (DM) for the FRBs.
+
     """
     # Calculate the average DM up to the highest redshift, interpolate
     # to avoid using this slow function again. (For every neval an
@@ -262,11 +324,11 @@ def draw_DM(frb_zs, F=0.2, mu=100, lognorm_s=1, rng=None):
     DM_cum, zeval = average_DM(frb_zs.max(), cosmo=cosmo, cumul=True)
     avrg_DM = interp1d(zeval, DM_cum, assume_sorted=True)
 
-    # Draw a DM_IGM from it's PDF. Multiply by <DM_cosmic> to get a DM.
+    # Draw a Delta from it's PDF. Multiply by <DM_cosmic> to get a DM.
     delta = [float(draw_Delta(z, f=F, n_samples=1, rng=rng)) for z in frb_zs]
     dm_cosmic = np.array(delta) * avrg_DM(frb_zs)
 
-    # Draw a DM_host from the parameters that Macquart2020 gives.
+    # Draw a DM_host.
     dm_host = lognorm.rvs(lognorm_s, scale=mu, size=len(frb_zs))
 
     return dm_host/(1+frb_zs) + dm_cosmic
@@ -277,17 +339,20 @@ def draw_Delta(z, f=0.2, n_samples=1, rng=None):
 
     Following Macquart et al. 2020 the PDF can be described by their
     equation (4). Here Delta = DM_cosmic / <DM_cosmic>, that means to
-    get DM_cosmic the returned number has to be multiplied by the average of
-    DM_cosmic. This is because frb.dm.igm.average_DM() is very slow and should
-    only be used once (with cumul=True) and then be interpolated.
+    get DM_cosmic the returned number has to be multiplied by the
+    average of DM_cosmic. This is because frb.dm.igm.average_DM() is
+    very slow and should only be used once (with cumul=True) and then be
+    interpolated.
 
     Args:
         z (float): Redshift.
-        f (float, optional): Strength of baryon feedback F. Defaults to 0.2.
-        n_samples (int, optional): Number to draw. Defaults to 1.
+        f (float): Strength of baryon feedback F.
+        n_samples (int): Number to draw.
+        rng (numpy.random.Generator, optional): Random number generator.
 
     Returns:
-        array: Delta for given z, defined as DM_cosmic / <DM_cosmic>.
+        numpy.ndarray: Delta for given z, defined as
+            DM_cosmic / <DM_cosmic>.
     """
     sigma = f/np.sqrt(z)
     c0 = minimize_scalar(average_DM_deviation, args=(sigma)).x

@@ -59,13 +59,33 @@ def gen_w(self):
 
 
 def generate_frbs(survey_model, beam_model='gaussian', z_model='sfr', n_srcs=1e7, z_max=1.5,
-                  bol_lum_low=1e40, specif_lum_high=1e40, w_min=0.):
-    """Generate a number of FRBs.
+                  bol_lum_low=1e40, specif_lum_high=1e40):
+    """Generate a population of Fast Radio Bursts (FRBs).
 
-    Most values are from  the build in "optimal" population.
-    This is mostly a convenience function to access the parameters we need.
+    This function generates a population of FRBs using the frbpoppy
+    module. It is mostly a convenience function to access the
+    parameters we need. Most of the parameter values are
+    based on the built-in "optimal" population in frbpoppy.
+    All parameters are in some way forwarded to frbpoppy and are
+    explained there in more detail.
 
-    spec_lums in erg/s/Hz
+    Args:
+        survey_model (str): Name of the survey model to use.
+            Choose from available survey names in frbpoppy.
+        beam_model (str): Beam pattern to use for FRB detection.
+            Choose from 'wsrt-apertif', 'parkes-htru', 'chime-frb',
+            'gaussian', 'airy'.
+        z_model (str): Cosmic number density model to use. Choose from
+            'vol_co', 'sfr', 'smd'.
+        n_srcs (float): Number of cosmic FRBs to generate.
+        z_max (float): Maximum redshift of FRBs.
+        bol_lum_low (float): Lower limit of the bolometric luminosity.
+        specif_lum_high (float in erg/s/Hz): Upper limit, but in terms
+            of the specific luminosity.
+
+    Returns:
+        Two frbpoppy populations: the cosmic population and the survey
+        population.
     """
     spectral_index = -0.65
     # Generate an observed FRB population
@@ -94,7 +114,7 @@ def generate_frbs(survey_model, beam_model='gaussian', z_model='sfr', n_srcs=1e7
 
     # Use our own function for the widths.
     cosmic_pop.w_shape = lambda: cosmic_pop.n_srcs
-    cosmic_pop.w_func = lambda shape, z: lognorm_mu(mu=5.49, sigma=np.log(2.46), w_min=w_min,
+    cosmic_pop.w_func = lambda shape, z: lognorm_mu(mu=5.49, sigma=np.log(2.46), w_min=0.,
                                                     shape=shape, z=z)
 
     # To change the funtion in the Class we need this "types" from
