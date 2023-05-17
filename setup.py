@@ -17,5 +17,6 @@ setup(name='mockFRBhosts',
           'matplotlib',
           'seaborn',
           'astropy',
+          'corner',
           ]
       )

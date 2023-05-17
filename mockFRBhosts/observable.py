@@ -48,7 +48,7 @@ from scipy.special import gamma
 from scipy.stats import sigmaclip
 from scipy.stats import lognorm
 from astropy.coordinates import Distance
-from astropy.cosmology import Planck18_arXiv_v2 as cosmo
+from astropy.cosmology import Planck18 as cosmo
 
 # Silence warnings about the hmf module.
 with warnings.catch_warnings():

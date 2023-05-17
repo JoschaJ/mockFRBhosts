@@ -43,9 +43,56 @@ example notebook, which a simplified case for a single survey. The more sophisti
 reproducing all figures published in the paper are contained in paper_notebooks.
 
 ## Installation
+`mockFRBhosts` depends on the following packages
+```
+python >= 3.6
+numpy
+scipy
+pandas
+matplotlib
+seaborn
+astropy
+corner
+FRB
+frbpoppy
+```
+If you want to use the MCMC simulations, you further need:
+```
+pymc3
+numba
+theano
+arviz  # to load posteriors
+```
+### Anaconda
+Either create a fresh environment or install it in an existing environment.
+To create a new environment with all packages:
+```
+conda create -c conda-forge --name mockFRBs python numpy scipy pandas matplotlib seaborn astropy corner arviz jupyterlab numba theano pymc3
+```
+To install them within the currently active environment use
+```
+conda install -c conda-forge numpy scipy pandas matplotlib seaborn astropy corner arviz jupyterlab numba theano pymc3
+```
+### Pip
 
+### FRB specific packages
+```
+git clone https://github.com/FRBs/FRB.git
+cd FRB
+python setup.py develop
+```
+```
+git clone https://github.com/davidgardenier/frbpoppy
+cd frbpoppy
+python setup.py develop
+```
+```
+git clone https://github.com/JoschaJ/mockFRBhosts
+cd mockFRBhosts
+python setup.py develop
+```
+Note that running frbpoppy the first time can take ~2 h because some lookup tables are created.
 frbpoppy, FRB,
 
-MCMC simulations : pymc3, numba, theano
 
 ## Cite

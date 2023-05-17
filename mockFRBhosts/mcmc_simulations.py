@@ -29,7 +29,7 @@ from scipy.stats import lognorm
 from scipy.special import hyp1f1
 from scipy.special import gamma
 from scipy.interpolate import InterpolatedUnivariateSpline as IUS
-from astropy.cosmology import Planck18_arXiv_v2 as cosmo
+from astropy.cosmology import Planck18 as cosmo
 
 # Silence warnings about the hmf module.
 with warnings.catch_warnings():
