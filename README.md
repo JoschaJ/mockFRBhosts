@@ -46,7 +46,7 @@ reproducing all figures published in the paper are contained in paper_notebooks.
 `mockFRBhosts` depends on the following packages
 ```
 python >= 3.6
-numpy
+numpy <= 1.22
 scipy
 pandas
 matplotlib
@@ -55,6 +55,7 @@ astropy
 corner
 FRB
 frbpoppy
+ne2001
 ```
 If you want to use the MCMC simulations, you further need:
 ```
@@ -64,29 +65,33 @@ theano
 arviz  # to load posteriors
 ```
 ### Anaconda
-Either create a fresh environment or install it in an existing environment.
+If you use Anaconda you can either create a fresh environment or install it in an existing environment.
 To create a new environment with all packages:
 ```
-conda create -c conda-forge --name mockFRBs python numpy scipy pandas matplotlib seaborn astropy corner arviz jupyterlab numba theano pymc3
+conda create -c conda-forge --name mockFRBs python=3.10 numpy<=1.22 scipy pandas matplotlib seaborn astropy corner jupyterlab numba theano pymc3
 ```
 To install them within the currently active environment use
 ```
-conda install -c conda-forge numpy scipy pandas matplotlib seaborn astropy corner arviz jupyterlab numba theano pymc3
+conda install -c conda-forge numpy scipy pandas matplotlib seaborn astropy corner jupyterlab numba theano pymc3
 ```
-### Pip
 
 ### FRB specific packages
 ```
-git clone https://github.com/FRBs/FRB.git
-cd FRB
-python setup.py develop
-```
-```
-git clone https://github.com/davidgardenier/frbpoppy
+git clone https://github.com/FRBs/ne2001
+cd ne2001
+pip install .
+cd ..
+
+git clone -b yuyang_update https://github.com/JoschaJ/frbpoppy  #  davidgardenier's version uses np.warnings which does not exist in numpy>=1.2.
 cd frbpoppy
 python setup.py develop
-```
-```
+cd ..
+
+git clone https://github.com/FRBs/FRB
+cd FRB
+python setup.py develop
+cd ..
+
 git clone https://github.com/JoschaJ/mockFRBhosts
 cd mockFRBhosts
 python setup.py develop
