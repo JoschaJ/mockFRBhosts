@@ -82,9 +82,9 @@ cd ne2001
 pip install .
 cd ..
 
-git clone -b yuyang_update https://github.com/JoschaJ/frbpoppy  #  davidgardenier's version uses np.warnings which does not exist in numpy>=1.2.
+git clone https://github.com/davidgardenier  #-b yuyang_update https://github.com/JoschaJ/frbpoppy  #  davidgardenier's version uses np.warnings which does not exist in numpy>=1.2.
 cd frbpoppy
-python setup.py develop
+pip install . # python setup.py develop
 cd ..
 
 git clone https://github.com/FRBs/FRB
@@ -96,8 +96,6 @@ git clone https://github.com/JoschaJ/mockFRBhosts
 cd mockFRBhosts
 python setup.py develop
 ```
-Note that running frbpoppy the first time can take ~2 h because some lookup tables are created.
-frbpoppy, FRB,
 
 
 ## Cite

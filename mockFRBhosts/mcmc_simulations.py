@@ -146,7 +146,7 @@ def log_likelihood(Obh70, F, in_DM_FRBp, z_FRB, mu=100.,
 
 
 def log_likelihood_variable_step(Obh70, F, in_DM_FRBp, z_FRB,
-                                 mu=100., lognorm_s=1., beta=3., res=400):
+                                 mu=100., lognorm_s=1., lognorm_floor=0., beta=3., res=400):
     """Calculate the log likelihood for a set of FRBs.
 
     Compared to the previously used "all_prob", this function includes a
@@ -165,6 +165,7 @@ def log_likelihood_variable_step(Obh70, F, in_DM_FRBp, z_FRB,
             Mean of log-normal PDF of DM_host (in DM units).
         lognorm_s (float, optional):
             Sigma of log-normal PDF of DM_host (in log space).
+        lognorm_floor (arbitrary): It is not used.
         beta (float, optional): Parameter for DM PDF.
         res (int, optional):
             Number of steps to use for the integral over the DM.

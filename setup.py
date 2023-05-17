@@ -11,7 +11,7 @@ setup(name='mockFRBhosts',
       license='MIT',
       python_requires='>=3.6',  # because of f-strings
       install_requires=[
-          'numpy<=1.22',  # because of pymc3
+          'numpy<=1.22',  # because of pymc3 and frbpoppy using np.warnings
           'scipy',
           'pandas',
           'matplotlib',
