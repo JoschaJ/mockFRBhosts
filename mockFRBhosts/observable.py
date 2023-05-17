@@ -84,13 +84,16 @@ def get_file_galaxies(gal_file, header_row=4):
 
 
 def download_galaxies(local_dir):
-    """Download GALFORM galaxies from Zenodo"""
+    """Download GALFORM galaxies from Zenodo."""
     # Find all files on the page
     url = 'https://zenodo.org/record/7926078'
     page = urlopen(url)
     html = page.read().decode("utf-8")
     files = re.findall(r'https://zenodo.org/record.*?frb\.cat', html)
 
+    # Ensure directory exists.
+    if not os.path.isdir(local_dir):
+        os.mkdir(local_dir)
     print("Galaxy data is being downloaded, this may take a few minutes (784 MB).")
     for file in files:
         # Define the local filename to save data
