@@ -50,8 +50,11 @@ from scipy.stats import lognorm
 from astropy.coordinates import Distance
 from astropy.cosmology import Planck18_arXiv_v2 as cosmo
 
-from frb.dm.cosmic import DMcosmic_PDF
-from frb.dm.igm import average_DM
+# Silence warnings about the hmf module.
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore")
+    from frb.dm.cosmic import DMcosmic_PDF
+    from frb.dm.igm import average_DM
 
 
 def get_file_zs(gal_file, header_row=4):

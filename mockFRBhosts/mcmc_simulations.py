@@ -21,6 +21,7 @@ Functions:
 
 Created on Sat Jul  9 01:16:51 2022
 """
+import warnings
 import numpy as np
 import pymc3 as pm
 
@@ -30,10 +31,13 @@ from scipy.special import gamma
 from scipy.interpolate import InterpolatedUnivariateSpline as IUS
 from astropy.cosmology import Planck18_arXiv_v2 as cosmo
 
-from frb import defs
-from frb.dm import mcmc
-from frb.dm import cosmic
-from frb.dm.igm import average_DM
+# Silence warnings about the hmf module.
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore")
+    from frb import defs
+    from frb.dm import mcmc
+    from frb.dm import cosmic
+    from frb.dm.igm import average_DM
 
 
 def do_mcmc(frb_zs, frb_DMs, draws, cores=4, tune=300):

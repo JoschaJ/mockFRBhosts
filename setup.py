@@ -1,16 +1,16 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 
 setup(name='mockFRBhosts',
       version='0.1',
-      description='Package to simulate optical FRB follow-up',
+      description='Package to simulate FRB hosts and their follow-up.',
       author='Joscha N. Jahns',
       author_email='jjahns@mpifr-bonn.mpg.de',
       url='https://github.com/JoschaJ/mockFRBhosts',
-      packages=find_packages(),
-      license='tbd',
+      packages=['mockFRBhosts'],
+      license='MIT',
+      python_requires='>=3.6',  # because of f-strings
       install_requires=[
-          'python>=3.6',  # because of f-strings
           'numpy',
           'scipy',
           'pandas',
