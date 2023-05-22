@@ -85,7 +85,7 @@ cd ..
 
 git clone https://github.com/davidgardenier/frbpoppy
 cd frbpoppy
-sed -i -e 's/2.20.0./2.20.0/g' setup.py  # newer pip versions don't allow the dot at the end
+sed -i -e 's/2.20.0./2.20.0/g' setup.py  # newer setuptools versions don't allow the dot at the end
 python setup.py develop
 cd ..
 
