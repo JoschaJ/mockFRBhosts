@@ -2,7 +2,7 @@ from setuptools import setup
 
 
 setup(name='mockFRBhosts',
-      version='0.1',
+      version='1.0',
       description='Package to simulate FRB hosts and their follow-up.',
       author='Joscha N. Jahns',
       author_email='jjahns@mpifr-bonn.mpg.de',
